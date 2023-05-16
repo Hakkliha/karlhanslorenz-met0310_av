@@ -1,4 +1,373 @@
 <?xml version="1.0"?>
+<robot name="macroed" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:property name="width" value="0.2" />
+  <xacro:property name="leglen" value="0.6" />
+  <xacro:property name="polelen" value="0.2" />
+  <xacro:property name="bodylen" value="0.6" />
+  <xacro:property name="baselen" value="0.4" />
+  <xacro:property name="wheeldiam" value="0.07" />
+  <xacro:property name="pi" value="3.1415" />
+  <xacro:property name="lens_radius" value="0.025"/>
+  <xacro:property name="lens_length" value="0.05"/>
+
+  <material name="blue">
+    <color rgba="0 0 0.8 1"/>
+  </material>
+
+  <material name="black">
+    <color rgba="0 0 0 1"/>
+  </material>
+
+  <material name="white">
+    <color rgba="1 1 1 1"/>
+  </material>
+  
+    <material name="dark">
+    <color rgba="0.3 0.3 0.3 1.0"/>
+  </material>
+
+  <xacro:macro name="default_inertial" params="mass">
+    <inertial>
+      <mass value="${mass}" />
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0" />
+    </inertial>
+  </xacro:macro>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${width}" length="${bodylen}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${width}" length="${bodylen}"/>
+      </geometry>
+    </collision>
+    <xacro:default_inertial mass="10"/>
+  </link>
+
+  <xacro:macro name="wheel" params="prefix suffix reflect">
+
+    <link name="${prefix}_${suffix}_wheel">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0" />
+        <geometry>
+          <cylinder radius="${wheeldiam/2}" length="0.1"/>
+        </geometry>
+        <material name="black"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0" />
+        <geometry>
+          <cylinder radius="${wheeldiam/2}" length="0.1"/>
+        </geometry>
+      </collision>
+      <xacro:default_inertial mass="1"/>
+    </link>
+    <joint name="${prefix}_${suffix}_wheel_joint" type="continuous">
+      <axis xyz="0 1 0" rpy="0 0 0" />
+      <parent link="${prefix}_base"/>
+      <child link="${prefix}_${suffix}_wheel"/>
+      <origin xyz="${baselen*reflect/3} 0 -${wheeldiam/2+.05}" rpy="0 0 0"/>
+    </joint>
+
+  </xacro:macro>
+
+  <xacro:macro name="leg" params="prefix reflect">
+    <link name="${prefix}_leg">
+      <visual>
+        <geometry>
+          <box size="${leglen} 0.1 0.2"/>
+        </geometry>
+        <origin xyz="0 0 -${leglen/2}" rpy="0 ${pi/2} 0"/>
+        <material name="white"/>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="${leglen} 0.1 0.2"/>
+        </geometry>
+        <origin xyz="0 0 -${leglen/2}" rpy="0 ${pi/2} 0"/>
+      </collision>
+      <xacro:default_inertial mass="10"/>
+    </link>
+
+    <joint name="base_to_${prefix}_leg" type="fixed">
+      <parent link="base_link"/>
+      <child link="${prefix}_leg"/>
+      <origin xyz="0 ${reflect*(width+.02)} 0.25" />
+    </joint>
+
+    <link name="${prefix}_base">
+      <visual>
+        <geometry>
+          <box size="${baselen} 0.1 0.1"/>
+        </geometry>
+        <material name="white"/>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="${baselen} 0.1 0.1"/>
+        </geometry>
+      </collision>
+      <xacro:default_inertial mass="10"/>
+    </link>
+
+    <joint name="${prefix}_base_joint" type="fixed">
+      <parent link="${prefix}_leg"/>
+      <child link="${prefix}_base"/>
+      <origin xyz="0 0 ${-leglen}" />
+    </joint>
+    <xacro:wheel prefix="${prefix}" suffix="front" reflect="1"/>
+    <xacro:wheel prefix="${prefix}" suffix="back" reflect="-1"/>
+  </xacro:macro>
+  <xacro:leg prefix="right" reflect="-1" />
+  <xacro:leg prefix="left" reflect="1" />
+
+  <joint name="gripper_extension" type="prismatic">
+    <parent link="base_link"/>
+    <child link="gripper_pole"/>
+    <limit effort="1000.0" lower="-${width*2-.02}" upper="0" velocity="0.5"/>
+    <origin rpy="0 0 0" xyz="${width-.01} 0 0.05"/>
+  </joint>
+
+  <link name="gripper_pole">
+    <visual>
+      <geometry>
+        <cylinder length="${polelen}" radius="0.01"/>
+      </geometry>
+      <origin xyz="${polelen/2} 0 0" rpy="0 ${pi/2} 0 "/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="${polelen}" radius="0.01"/>
+      </geometry>
+      <origin xyz="${polelen/2} 0 0" rpy="0 ${pi/2} 0 "/>
+    </collision>
+    <xacro:default_inertial mass="0.05"/>
+  </link>
+
+  <xacro:macro name="gripper" params="prefix reflect">
+    <joint name="${prefix}_gripper_joint" type="revolute">
+      <axis xyz="0 0 ${reflect}"/>
+      <limit effort="1000.0" lower="0.0" upper="0.548" velocity="0.5"/>
+      <origin rpy="0 0 0" xyz="${polelen} ${reflect*0.01} 0"/>
+      <parent link="gripper_pole"/>
+      <child link="${prefix}_gripper"/>
+    </joint>
+    <link name="${prefix}_gripper">
+      <visual>
+        <origin rpy="${(reflect-1)/2*pi} 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://urdf_tutorial/meshes/l_finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://urdf_tutorial/meshes/l_finger.dae"/>
+        </geometry>
+        <origin rpy="${(reflect-1)/2*pi} 0 0" xyz="0 0 0"/>
+      </collision>
+      <xacro:default_inertial mass="0.05"/>
+    </link>
+
+    <joint name="${prefix}_tip_joint" type="fixed">
+      <parent link="${prefix}_gripper"/>
+      <child link="${prefix}_tip"/>
+    </joint>
+    <link name="${prefix}_tip">
+      <visual>
+        <origin rpy="${(reflect-1)/2*pi} 0 0" xyz="0.09137 0.00495 0"/>
+        <geometry>
+          <mesh filename="package://urdf_tutorial/meshes/l_finger_tip.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://urdf_tutorial/meshes/l_finger_tip.dae"/>
+        </geometry>
+        <origin rpy="${(reflect-1)/2*pi} 0 0" xyz="0.09137 0.00495 0"/>
+      </collision>
+      <xacro:default_inertial mass="0.05"/>
+    </link>
+  </xacro:macro>
+
+  <xacro:gripper prefix="left" reflect="1" />
+  <xacro:gripper prefix="right" reflect="-1" />
+
+  <link name="head">
+    <visual>
+      <geometry>
+        <sphere radius="${width}"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="${width}"/>
+      </geometry>
+    </collision>
+    <xacro:default_inertial mass="2"/>
+  </link>
+
+  <joint name="head_swivel" type="fixed">
+    <parent link="base_link"/>
+    <child link="head"/>
+    <axis xyz="0 0 1"/>
+    <origin xyz="0 0 ${bodylen/2}"/>
+  </joint>
+
+  <link name="box">
+    <visual>
+      <geometry>
+        <box size="0.08 0.08 0.08"/>
+      </geometry>
+      <material name="blue"/>
+      <origin xyz="-0.04 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.08 0.08 0.08"/>
+      </geometry>
+    </collision>
+    <xacro:default_inertial mass="1"/>
+  </link>
+
+  <joint name="tobox" type="fixed">
+    <parent link="head"/>
+    <child link="box"/>
+    <origin xyz="${.707*width+0.04} 0 ${.707*width}"/>
+  </joint>
+  
+  <link name="lens">
+   <visual>
+     <geometry>
+       <cylinder radius="${lens_radius}" length="${lens_length}"/>
+     </geometry>
+     <material name="black"/>
+   </visual>
+     <collision>
+       <geometry>
+        <cylinder radius="${lens_radius}" length="${lens_length}"/>
+       </geometry>
+     </collision>
+     <xacro:default_inertial mass="0.5"/>
+  </link>
+  
+  <joint name="lens_extension" type="prismatic">
+    <axis xyz="0 0 1" rpy="0 0 0"/>
+    <parent link="box"/>
+    <child link="lens"/>
+    <limit effort="1000.0" lower="-0.05" upper="0" velocity="0.5"/>
+    <origin xyz="0.015 0 0" rpy="0 ${pi/2} 0"/>
+  </joint>
+  
+  <link name="base_footprint">
+  </link>
+  
+  <joint name="base_footprint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.47" rpy="0 0 0"/>
+  </joint>
+  
+  
+  
+  <joint name="scan_joint" type="fixed">
+    <parent link="box"/>
+    <child link="base_scan"/>
+    <origin xyz="0 0 0.04" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_scan">
+    <visual>
+      <origin xyz="-0.01 0 0.02" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://turtlebot3_description/meshes/sensors/lds.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="dark"/>
+    </visual>
+
+    <collision>
+      <origin xyz="-0.01 0 0.2" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.0315" radius="0.055"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <mass value="0.114" />
+      <origin xyz="-0.01 0 0.2" />
+      <inertia ixx="0.001" ixy="0.0" ixz="0.0"
+               iyy="0.001" iyz="0.0"
+               izz="0.001" />
+    </inertial>
+  </link>
+  
+  
+  <gazebo reference="base_scan">
+    <material>Gazebo/FlatBlack</material>
+     <sensor type="ray" name="lds_lfcd_sensor">
+      <pose>0 0 0 0 0 0</pose>
+       <visualize>false</visualize>
+        <update_rate>5</update_rate>
+         <ray>
+          <scan>
+           <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>0.0</min_angle>
+            <max_angle>6.28319</max_angle>
+           </horizontal>
+          </scan>
+          <range>
+           <min>0.120</min>
+           <max>3.5</max>
+           <resolution>0.015</resolution>
+          </range>
+          <noise>
+           <type>gaussian</type>
+           <mean>0.0</mean>
+           <stddev>0.01</stddev>
+          </noise>
+         </ray>
+         <plugin name="gazebo_ros_lds_lfcd_controller" filename="libgazebo_ros_laser.so">
+          <topicName>scan</topicName>
+          <frameName>base_scan</frameName>
+         </plugin>
+      </sensor>
+  </gazebo>
+  
+  
+  
+  <gazebo>
+  <!-- Gazebo plugin for skid steering -->
+  <plugin name="skid_steer_drive_controller" filename="libgazebo_ros_skid_steer_drive.so">
+    <alwaysOn>true</alwaysOn>
+    <updateRate>50.0</updateRate>
+    <leftFrontJoint>left_front_wheel_joint</leftFrontJoint>
+    <rightFrontJoint>right_front_wheel_joint</rightFrontJoint>
+    <leftRearJoint>left_back_wheel_joint</leftRearJoint>
+    <rightRearJoint>right_back_wheel_joint</rightRearJoint>
+    <wheelSeparation>${2.0*baselen/3.0}</wheelSeparation>
+    <wheelDiameter>${wheeldiam}</wheelDiameter>
+    <torque>10</torque>
+    <broadcastTF>1</broadcastTF>
+    <odometryFrame>odom</odometryFrame>
+    <commandTopic>cmd_vel</commandTopic>
+    <odometryTopic>/odom</odometryTopic>
+    <robotBaseFrame>base_link</robotBaseFrame>
+  </plugin>
+  </gazebo>
+  
+  
+  
+  
+  
+</robot>
+<!-- <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="firefighter">
     <xacro:property name="robotname" value="Arr2Dee2" />
     <material name="blue">
@@ -12,13 +381,22 @@
     </material>
     <xacro:property name="width" value="0.2" />
     <xacro:property name="bodylen" value="0.6" />
+    <xacro:property name="baselen" value="0.8" />
+    <xacro:property name="wheeldiam" value="0.07" />
     <xacro:macro name="default_inertial" params="mass">
         <inertial>
             <mass value="${mass}" />
-            <inertia ixx="0.4" ixy="0.0" ixz="0.0" iyy="0.4" iyz="0.0" izz="0.2"/>
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
         </inertial>
     </xacro:macro>
     <link name="base_footprint">
+        <xacro:default_inertial mass="10"/>
+        <collision>
+            <origin xyz="0 0 0.4"/>
+            <geometry>
+                <cylinder radius="0.3" length="0.8"/>
+            </geometry>
+        </collision>
     </link>
     <link name="base_link">
         <visual>
@@ -33,6 +411,24 @@
             </geometry>
         </collision>
         <xacro:default_inertial mass="10"/>
+        <gazebo>
+            <plugin name="skid_steer_drive_controller" filename="libgazebo_ros_skid_steer_drive.so">
+                <alwaysOn>true</alwaysOn>
+                <updateRate>50.0</updateRate>
+                <leftFrontJoint>left_front_wheel_joint</leftFrontJoint>
+                <rightFrontJoint>right_front_wheel_joint</rightFrontJoint>
+                <leftRearJoint>left_back_wheel_joint</leftRearJoint>
+                <rightRearJoint>right_back_wheel_joint</rightRearJoint>
+                <wheelSeparation>${2.0*baselen/3.0}</wheelSeparation>
+                <wheelDiameter>${wheeldiam}</wheelDiameter>
+                <torque>10</torque>
+                <broadcastTF>1</broadcastTF>
+                <odometryFrame>odom</odometryFrame>
+                <commandTopic>cmd_vel</commandTopic>
+                <odometryTopic>/odom</odometryTopic>
+                <robotBaseFrame>base_link</robotBaseFrame>
+            </plugin>
+        </gazebo>
     </link>
     <joint name="base_link_to_base_footprint" type="fixed">
         <parent link="base_footprint"/>
@@ -47,6 +443,7 @@
             <origin rpy="0 1.57075 0" xyz="0 0 -0.3"/>
             <material name="white"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
 
     <joint name="base_to_right_leg" type="fixed">
@@ -62,6 +459,7 @@
             </geometry>
             <material name="white"/>
         </visual>
+        <xacro:default_inertial mass="20"/>
     </link>
 
     <joint name="right_base_joint" type="fixed">
@@ -78,6 +476,7 @@
             </geometry>
             <material name="black"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
     <joint name="right_front_wheel_joint" type="fixed">
         <parent link="right_base"/>
@@ -93,6 +492,7 @@
             </geometry>
             <material name="black"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
     <joint name="right_back_wheel_joint" type="fixed">
         <parent link="right_base"/>
@@ -108,6 +508,7 @@
             <origin rpy="0 1.57075 0" xyz="0 0 -0.3"/>
             <material name="white"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
 
     <joint name="base_to_left_leg" type="fixed">
@@ -123,6 +524,7 @@
             </geometry>
             <material name="white"/>
         </visual>
+        <xacro:default_inertial mass="20"/>
     </link>
 
     <joint name="left_base_joint" type="fixed">
@@ -139,6 +541,7 @@
             </geometry>
             <material name="black"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
     <joint name="left_front_wheel_joint" type="fixed">
         <parent link="left_base"/>
@@ -154,6 +557,7 @@
             </geometry>
             <material name="black"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
     <joint name="left_back_wheel_joint" type="fixed">
         <parent link="left_base"/>
@@ -175,6 +579,7 @@
             </geometry>
             <origin rpy="0 1.57075 0 " xyz="0.1 0 0"/>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
 
     <joint name="left_gripper_joint" type="revolute">
@@ -192,6 +597,7 @@
                 <mesh filename="package://urdf_tutorial/meshes/l_finger.dae"/>
             </geometry>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
 
     <joint name="left_tip_joint" type="fixed">
@@ -206,6 +612,7 @@
                 <mesh filename="package://urdf_tutorial/meshes/l_finger_tip.dae"/>
             </geometry>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
     <joint name="right_gripper_joint" type="revolute">
         <axis xyz="0 0 1"/>
@@ -222,6 +629,7 @@
                 <mesh filename="package://urdf_tutorial/meshes/l_finger.dae"/>
             </geometry>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
 
     <joint name="right_tip_joint" type="fixed">
@@ -236,6 +644,7 @@
                 <mesh filename="package://urdf_tutorial/meshes/l_finger_tip.dae"/>
             </geometry>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
 
     <link name="head">
@@ -245,6 +654,7 @@
             </geometry>
             <material name="white"/>
         </visual>
+        <xacro:default_inertial mass="10"/>
     </link>
     <joint name="head_swivel" type="continuous">
         <parent link="base_link"/>
@@ -260,6 +670,7 @@
             </geometry>
             <material name="blue"/>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
 
     <joint name="tobox" type="fixed">
@@ -276,6 +687,7 @@
             <origin rpy="0 1.57075 0"/>
             <material name="black"/>
         </visual>
+        <xacro:default_inertial mass="1"/>
     </link>
 
     <joint name="tolens" type="prismatic">
@@ -284,4 +696,67 @@
         <origin xyz="0.05 0 0"/>
         <limit effort="1000.0" lower="-0.06" upper="0" velocity="0.5"/>
     </joint>
-</robot>
+
+    <link name="base_scan">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://turtlebot3_description/meshes/sensors/lds.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="dark"/>
+    </visual>
+
+    <collision>
+      <origin xyz="0.015 0 -0.0065" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.0315" radius="0.055"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <mass value="0.114" />
+      <origin xyz="0 0 0" />
+      <inertia ixx="0.001" ixy="0.0" ixz="0.0"
+               iyy="0.001" iyz="0.0"
+               izz="0.001" />
+    </inertial>
+    
+  </link>
+    <joint name="base_scan_joint" type="fixed">
+        <parent link="lens"/>
+        <child link="base_scan"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    </joint>
+    <gazebo reference="base_scan">
+        <material>Gazebo/FlatBlack</material>
+        <sensor type="ray" name="lds_lfcd_sensor">
+            <pose>0 0 0 0 0 0</pose>
+            <visualize>false</visualize>
+            <update_rate>5</update_rate>
+            <ray>
+                <scan>
+                    <horizontal>
+                        <samples>360</samples>
+                        <resolution>1</resolution>
+                        <min_angle>0.0</min_angle>
+                        <max_angle>6.28319</max_angle>
+                    </horizontal>
+                </scan>
+                <range>
+                    <min>0.120</min>
+                    <max>3.5</max>
+                    <resolution>0.015</resolution>
+                </range>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.01</stddev>
+                </noise>
+            </ray>
+            <plugin name="gazebo_ros_lds_lfcd_controller" filename="libgazebo_ros_laser.so">
+                <topicName>scan</topicName>
+                <frameName>base_scan</frameName>
+            </plugin>
+        </sensor>
+    </gazebo>
+</robot> -->
